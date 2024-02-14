@@ -9,7 +9,7 @@ from softgym.envs.cloth_drop import ClothDropEnv
 from softgym.envs.cloth_fold_crumpled import ClothFoldCrumpledEnv
 from softgym.envs.cloth_fold_drop import ClothFoldDropEnv
 from softgym.envs.tshirt_flatten import TshirtFlattenEnv
-
+from softgym.envs.any_cloth_flatten import AnyClothFlattenEnv
 from collections import OrderedDict
 
 env_arg_dict = {
@@ -81,6 +81,21 @@ env_arg_dict = {
                       'num_variations': 1000,
                       'use_cached_states': True,
                       'deterministic': False},
+    'AnyClothFlatten': {'observation_mode': 'point_cloud',
+                        'action_mode': 'picker',
+                        'num_picker': 2,
+                        'render': True,
+                        'headless': True,
+                        'horizon': 100,
+                        'action_repeat': 1,
+                        'render_mode': 'cloth',
+                        'num_variations': 1000,
+                        'use_cached_states': True,
+                        'deterministic': False,
+                        'ambiguity_agnostic': False,
+                        'cloth_type': 'Trousers',
+                        'load_flat': True,
+                        },
     'ClothFlattenPPP': {'observation_mode': 'cam_rgb',
                         'action_mode': 'pickerpickplace',
                         'num_picker': 2,
@@ -205,5 +220,6 @@ SOFTGYM_ENVS = OrderedDict({
     'ClothFoldCrumpled': ClothFoldCrumpledEnv,
     'RopeFlatten': RopeFlattenEnv,
     'RopeConfiguration': RopeConfigurationEnv,
-    'TshirtFlatten': TshirtFlattenEnv
+    'TshirtFlatten': TshirtFlattenEnv,
+    'AnyClothFlatten': AnyClothFlattenEnv
 })

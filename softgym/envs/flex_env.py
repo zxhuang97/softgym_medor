@@ -27,7 +27,9 @@ class FlexEnv(gym.Env):
                  camera_name='default_camera',
                  deterministic=True,
                  use_cached_states=True,
-                 save_cached_states=True, **kwargs):
+                 save_cached_states=True,
+                 eval_flag=False,
+                 **kwargs):
         self.camera_params, self.camera_width, self.camera_height, self.camera_name = {}, camera_width, camera_height, camera_name
         pyflex.init(headless, render, camera_width, camera_height)
 
@@ -56,7 +58,7 @@ class FlexEnv(gym.Env):
         self.dim_velocity = 3
         self.dim_shape_state = 14
         self.particle_num = 0
-        self.eval_flag = False
+        self.eval_flag = eval_flag
 
         # version 1 does not support robot, while version 2 does.
         pyflex_root = os.environ['PYFLEXROOT']
@@ -133,6 +135,9 @@ class FlexEnv(gym.Env):
         pyflex.set_velocities(state_dict['particle_vel'])
         pyflex.set_shape_states(state_dict['shape_pos'])
         pyflex.set_phases(state_dict['phase'])
+        self.current_config_id = state_dict['config_id']
+
+        self.camera_params = copy.deepcopy(state_dict['camera_params'])
         self.update_camera(self.camera_name)
 
     def close(self):
@@ -160,31 +165,31 @@ class FlexEnv(gym.Env):
             save_numpy_as_gif(np.array(self.video_frames), video_path, **kwargs)
         del self.video_frames
 
-    def reset(self, config=None, initial_state=None, config_id=None):
+    def reset(self, config=None, initial_state=None, config_id=None, *args, **kwargs):
         if config is None:
             if config_id is None:
                 if self.eval_flag:
-                    eval_beg = int(0.8 * len(self.cached_configs))
+                    eval_beg = int(0.9 * len(self.cached_configs))
                     config_id = np.random.randint(low=eval_beg, high=len(self.cached_configs)) if not self.deterministic else eval_beg
                 else:
-                    train_high = int(0.8 * len(self.cached_configs))
+                    train_high = int(0.9 * len(self.cached_configs))
                     config_id = np.random.randint(low=0, high=max(train_high, 1)) if not self.deterministic else 0
 
             self.current_config = self.cached_configs[config_id]
-            self.current_config_id = config_id
             self.set_scene(self.cached_configs[config_id], self.cached_init_states[config_id])
+            self.current_config_id = config_id
         else:
             self.current_config = config
             self.set_scene(config, initial_state)
         self.particle_num = pyflex.get_n_particles()
         self.prev_reward = 0.
         self.time_step = 0
-        obs = self._reset()
+        obs = self._reset(*args, **kwargs)
         if self.recording:
             self.video_frames.append(self.render(mode='rgb_array'))
         return obs
 
-    def step(self, action, record_continuous_video=False, img_size=None):
+    def step(self, action, record_continuous_video=False, img_size=None, get_info=True):
         """ If record_continuous_video is set to True, will record an image for each sub-step"""
         frames = []
         for i in range(self.action_repeat):
@@ -193,9 +198,9 @@ class FlexEnv(gym.Env):
                 frames.append(self.get_image(img_size, img_size))
         obs = self._get_obs()
         reward = self.compute_reward(action, obs, set_prev_reward=True)
-        info = self._get_info()
+        info = self._get_info() if get_info else None
 
-        if self.recording:
+        if self.recording and record_continuous_video:
             self.video_frames.append(self.render(mode='rgb_array'))
         self.time_step += 1
 
@@ -227,7 +232,7 @@ class FlexEnv(gym.Env):
     def render(self, mode='rgb_array'):
         if mode == 'rgb_array':
             img, depth = pyflex.render()
-            width, height = self.camera_params['default_camera']['width'], self.camera_params['default_camera']['height']
+            width, height = self.camera_params[self.camera_name]['width'], self.camera_params[self.camera_name]['height']
             img = img.reshape(height, width, 4)[::-1, :, :3]  # Need to reverse the height dimension
             return img
         elif mode == 'human':

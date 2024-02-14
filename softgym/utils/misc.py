@@ -1,5 +1,6 @@
 import numpy as np
 from pyquaternion import Quaternion
+from scipy.spatial import ckdtree
 
 
 def rotation_2d_around_center(pt, center, theta):
@@ -76,3 +77,110 @@ def quatFromAxisAngle(axis, angle):
     quat = np.array([axis[0], axis[1], axis[2], w])
 
     return quat
+
+def quads2tris(F):
+    out = []
+    for f in F:
+        if len(f) == 3: out += [f]
+        elif len(f) == 4: out += [[f[0],f[1],f[2]],
+                                [f[0],f[2],f[3]]]
+        else: print("This should not happen....")
+    return np.array(out, np.int32)
+
+def load_cloth(path):
+    """Load .obj of cloth mesh. Only quad-mesh is acceptable!
+    Return:
+        - vertices: ndarray, (N, 3)
+        - triangle_faces: ndarray, (S, 3)
+        - stretch_edges: ndarray, (M1, 2)
+        - bend_edges: ndarray, (M2, 2)
+        - shear_edges: ndarray, (M3, 2)
+    This function was written by Zhenjia Xu
+    email: xuzhenjia [at] cs (dot) columbia (dot) edu
+    website: https://www.zhenjiaxu.com/
+    """
+    vertices, faces = [], []
+    with open(path, 'r') as f:
+        lines = f.readlines()
+    for line in lines:
+        # 3D vertex
+        if line.startswith('v '):
+            vertices.append([float(n)
+                             for n in line.replace('v ', '').split(' ')])
+        # Face
+        elif line.startswith('f '):
+            idx = [n.split('/') for n in line.replace('f ', '').split(' ')]
+            face = [int(n[0]) - 1 for n in idx]
+            assert(len(face) == 4)
+            faces.append(face)
+
+    triangle_faces = []
+    for face in faces:
+        triangle_faces.append([face[0], face[1], face[2]])
+        triangle_faces.append([face[0], face[2], face[3]])
+
+    stretch_edges, shear_edges, bend_edges = set(), set(), set()
+
+    # Stretch & Shear
+    for face in faces:
+        stretch_edges.add(tuple(sorted([face[0], face[1]])))
+        stretch_edges.add(tuple(sorted([face[1], face[2]])))
+        stretch_edges.add(tuple(sorted([face[2], face[3]])))
+        stretch_edges.add(tuple(sorted([face[3], face[0]])))
+
+        shear_edges.add(tuple(sorted([face[0], face[2]])))
+        shear_edges.add(tuple(sorted([face[1], face[3]])))
+
+    # Bend
+    neighbours = dict()
+    for vid in range(len(vertices)):
+        neighbours[vid] = set()
+    for edge in stretch_edges:
+        neighbours[edge[0]].add(edge[1])
+        neighbours[edge[1]].add(edge[0])
+    for vid in range(len(vertices)):
+        neighbour_list = list(neighbours[vid])
+        N = len(neighbour_list)
+        for i in range(N - 1):
+            for j in range(i+1, N):
+                bend_edge = tuple(
+                    sorted([neighbour_list[i], neighbour_list[j]]))
+                if bend_edge not in shear_edges:
+                    bend_edges.add(bend_edge)
+
+    return np.array(vertices), np.array(triangle_faces),\
+        np.array(list(stretch_edges)), np.array(
+            list(bend_edges)), np.array(list(shear_edges))
+
+def find_2D_rigid_trans(pts1, pts2, use_chamfer=False):
+    """Given two set aligned points, find the best-fit 2D rigid transformation by kabsch algorithm"""
+    uv1 = pts1[:, [0,2]]
+    uv2 = pts2[:, [0,2]]
+    centroid1 = uv1.mean(0, keepdims=True)
+    centroid2 = uv2.mean(0, keepdims=True)
+    zero_pts1 = uv1 - centroid1
+    zero_pts2 = uv2 - centroid2
+    H = zero_pts1.T @ zero_pts2
+
+    U, S, Vh = np.linalg.svd(H)
+    d = np.linalg.det(Vh.T @ U.T)
+    m = np.eye(2)
+    m[1, 1] = d
+
+    R = Vh.T @ m @ U.T
+    t = centroid2.T - R@centroid1.T
+
+    rigid_mat = np.concatenate([R, np.zeros((2,1))], axis=1)
+    rigid_mat[:, 2:3] += t
+    return rigid_mat
+
+def get_closest_point(pred_points, gt_points):
+    # pred_tree = ckdtree.cKDTree(pred_points)
+    gt_tree = ckdtree.cKDTree(gt_points)
+    forward_distance, forward_nn_idx = gt_tree.query(pred_points, k=1)
+    # backward_distance, backward_nn_idx = pred_tree.query(gt_points, k=1)
+    # forward_chamfer = np.mean(forward_distance)
+    # backward_chamfer = np.mean(backward_distance)
+    # symmetrical_chamfer = np.mean([forward_chamfer, backward_chamfer])
+
+    return forward_nn_idx

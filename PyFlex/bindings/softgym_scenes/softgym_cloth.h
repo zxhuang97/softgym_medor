@@ -29,6 +29,7 @@ public:
     // render_type, cam_X, cam_y, cam_z, angle_x, angle_y, angle_z, width, height
 	void Initialize(py::array_t<float> scene_params, int thread_idx=0)
     {
+        std::cout << "Initializing SoftgymCloth" << std::endl;
         auto ptr = (float *) scene_params.request().ptr;
 	    float initX = ptr[0];
 	    float initY = ptr[1];
