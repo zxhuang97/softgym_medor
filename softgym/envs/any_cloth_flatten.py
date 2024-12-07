@@ -15,7 +15,6 @@ import pickle
 import os
 
 
-
 class AnyClothFlattenEnv(ClothEnv):
     def __init__(self, cloth_type=None, obj_paths=None, cloth3d_dir="", collect_mode=None,
                  load_flat=False, ambiguity_agnostic=False,
@@ -44,7 +43,8 @@ class AnyClothFlattenEnv(ClothEnv):
         if obj_paths is not None:
             self.obj_paths = obj_paths
         elif cloth_type not in ['square', 'rectangle']:
-            self.obj_paths = glob.glob(f"{self.cloth3d_dir}/mesh/{cloth_type}/*.obj") if obj_paths is None else obj_paths
+            self.obj_paths = glob.glob(
+                f"{self.cloth3d_dir}/mesh/{cloth_type}/*.obj") if obj_paths is None else obj_paths
             self.obj_paths = sorted(self.obj_paths)
         else:
             self.obj_paths = [i for i in range(500)]
@@ -165,7 +165,8 @@ class AnyClothFlattenEnv(ClothEnv):
             if self.ambiguity_agnostic:
                 canon_poses = self.collect_ambiguity_aware_canon_states(random_id)
             else:
-                canon_poses = self.flatten_states[random_id]['particle_pos'].reshape(-1, 4)[None, ..., :3]
+                canon_poses = self.flatten_states[random_id]['particle_pos'].reshape(-1, 4)[None, ...,
+                              :3]
             generated_states[-1]['canon_poses'] = canon_poses
             init_canon_dis, _ = self.compute_canon_dis_ambiguity_agnostic(canon_poses,
                                                                           init_pos,
@@ -185,7 +186,6 @@ class AnyClothFlattenEnv(ClothEnv):
                                                                     cur_cov / config['flatten_area']))
 
         return generated_configs, generated_states
-
 
     def get_all_obs(self):
         rgbd = self.get_rgbd(show_picker=False)
@@ -254,9 +254,7 @@ class AnyClothFlattenEnv(ClothEnv):
             cx, cy = self._get_center_point(curr_pos)
             self.action_tool.reset([cx, -1, cy])
         pyflex.step()
-        self.init_covered_area = init_covered_area
-        self.init_canon_dis = self.current_config.get('init_canon_dis', 0)
-        self.init_canon_dis_rigid = self.current_config.get('init_canon_dis_rigid', 0)
+
         cur_state = None if self.current_config_id is None else self.cached_init_states[
             self.current_config_id]
 
@@ -274,9 +272,20 @@ class AnyClothFlattenEnv(ClothEnv):
         else:
             print('Warnings! Flat states are not loaded and canon dis computation is wrong')
             self.canon_poses = pyflex.get_positions().reshape(1, -1, 4)[:, :, :3]
-        # info = self._get_info()
+        self.init_covered_area = init_covered_area
         if self.init_covered_area < 0:
             self.init_covered_area = self.prev_covered_area
+        if "init_canon_dis" not in self.current_config:
+            self.init_canon_dis, _ = self.compute_canon_dis_ambiguity_agnostic(self.canon_poses,
+                                                                               self.init_pos,
+                                                                               find_rigid=False)
+
+            self.init_canon_dis_rigid, _ = self.compute_canon_dis_ambiguity_agnostic(self.canon_poses,
+                                                                                     self.init_pos,
+                                                                                     find_rigid=True)
+        else:
+            self.init_canon_dis = self.current_config["init_canon_dis"]
+            self.init_canon_dis_rigid = self.current_config["init_canon_dis_rigid"]
         return self._get_obs()
 
     def _step(self, action):
@@ -284,7 +293,8 @@ class AnyClothFlattenEnv(ClothEnv):
         self.action_tool.step(action)
         if self.action_mode in ['sawyer', 'franka']:
             pyflex.step(self.action_tool.next_action)
-        elif not isinstance(action, tuple) or action[1] is None:  # if align pc, step has already been called
+        elif not isinstance(action, tuple) or action[
+            1] is None:  # if align pc, step has already been called
             pyflex.step()
         return
 
@@ -364,9 +374,10 @@ class AnyClothFlattenEnv(ClothEnv):
     @staticmethod
     def compute_canon_dis_ambiguity_agnostic(pts_tgts, pts, find_rigid=False):
         """Given a list of targets, compute the best fit canon distance"""
-        cur_canon_dis_list, canon_tgt_list =[], []
+        cur_canon_dis_list, canon_tgt_list = [], []
         for pts_tgt in pts_tgts:
-            cur_canon_dis, canon_tgt = AnyClothFlattenEnv.compute_canon_dis(pts_tgt, pts, find_rigid=find_rigid)
+            cur_canon_dis, canon_tgt = AnyClothFlattenEnv.compute_canon_dis(pts_tgt, pts,
+                                                                            find_rigid=find_rigid)
             cur_canon_dis_list.append(cur_canon_dis)
             canon_tgt_list.append(canon_tgt)
 
@@ -591,7 +602,6 @@ class AnyClothFlattenEnv(ClothEnv):
             generated_configs[-1]['gravity'] = -9.8
             generated_configs[-1]['cloth_id'] = i
 
-
         with open(self.flat_states_path, "wb") as handle:
             pickle.dump((generated_configs, generated_states), handle, protocol=pickle.HIGHEST_PROTOCOL)
         print(f"Flatten states  of {len(generated_states)} cloths are saved to {self.flat_states_path}")
@@ -673,7 +683,8 @@ if __name__ == '__main__':
     while not ok:
         pp = np.random.randint(len(pos))
         if np.any(np.logical_and(
-                np.logical_and(np.abs(pos[:, 0] - pos[pp][0]) < 0.00625, np.abs(pos[:, 2] - pos[pp][2]) < 0.00625),
+                np.logical_and(np.abs(pos[:, 0] - pos[pp][0]) < 0.00625,
+                               np.abs(pos[:, 2] - pos[pp][2]) < 0.00625),
                 pos[:, 1] > pos[pp][1])):
             ok = False
         else:
